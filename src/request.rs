@@ -60,7 +60,6 @@ fn online_access<S: Read + Write>(
         return Ok(None);
     }
     let mut headers: HashMap<String, String> = HashMap::new();
-    let mut body = String::new();
     for line in reader.by_ref().lines() {
         let line = line?;
         if line == "" {
@@ -69,9 +68,8 @@ fn online_access<S: Read + Write>(
         let (header, value) = line.split_once(":").unwrap();
         headers.insert(header.to_lowercase(), value.trim().to_string());
     }
-    for line in reader.lines() {
-        body.push_str(&line?);
-    }
+    let mut body = String::new();
+    reader.read_to_string(&mut body)?;
     return Ok(Some((headers, body)));
 }
 
