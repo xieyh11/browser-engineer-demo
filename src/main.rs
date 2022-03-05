@@ -3,11 +3,17 @@ use std::{
     collections::HashMap,
     env,
     io::{BufRead, BufReader, Error, Read, Write},
-    net::TcpStream,
+    net::TcpStream, fs,
 };
 
 fn request(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error> {
+    if url.starts_with("data:") {
+        return parse_data(url);
+    }
     let (schema, url) = url.split_once("://").unwrap_or(("https", url));
+    if schema == "file" {
+        return Ok(Some((HashMap::new(), fs::read_to_string(url)?)));
+    }
     if schema != "https" && schema != "http" {
         return Ok(None);
     }
@@ -44,7 +50,7 @@ fn online_access<S: Read + Write>(
     host: &str,
     path: &str,
 ) -> Result<Option<(HashMap<String, String>, String)>, Error> {
-    s.write_all(format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, host).as_bytes())?;
+    s.write_all(format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nUser-Agent: Browser-Demo/0.0.1\r\n\r\n", path, host).as_bytes())?;
     let mut reader = BufReader::new(s);
     let mut buf = String::new();
     reader.read_line(&mut buf)?;
@@ -72,22 +78,53 @@ fn online_access<S: Read + Write>(
 fn show(body: &str) {
     let mut is_angle = 0;
     for c in body.chars() {
-        is_angle = if c == '<' {
-             is_angle+1
+        if c == '<' {
+            is_angle += 1;
         } else if c == '>' {
-           is_angle-1
-        } else {
-            is_angle
-        };
-        if is_angle == 0 {
+            is_angle -= 1;
+        } else if is_angle == 0 {
             print!("{}", c);
+        }
+    }
+}
+
+fn parse_data(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error> {
+    let url = &url["data:".len()..];
+    let (metadata, body) = url.split_once(",").unwrap();
+    match metadata {
+        "text/html" => Ok(Some((HashMap::new(), format!("<html><body>{}</body></html>", body)))),
+        _ => Ok(None),
+    }
+}
+
+fn show_only_body(body: &str) {
+    let mut is_angle = 0;
+    let mut meet_body = false;
+    let mut leave_body = false;
+    let mut tag = String::new();
+    for c in body.chars() {
+        if c == '<' {
+            tag.clear();
+            is_angle += 1;
+        } else if c == '>' {
+            if tag == "body" {
+                meet_body = true;
+            } else if tag == "/body" {
+                leave_body = true;
+            }
+            tag.clear();
+            is_angle -= 1;
+        } else if is_angle == 0 && meet_body && !leave_body {
+            print!("{}", c);
+        } else if is_angle == 1{
+            tag.push(c);
         }
     }
 }
 
 fn load(url: &str) {
     let (_, body) = request(url).unwrap().unwrap();
-    show(&body);
+    show_only_body(&body);
 }
 
 fn main() {
