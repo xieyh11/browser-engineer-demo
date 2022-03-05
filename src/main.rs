@@ -7,7 +7,7 @@ use std::{
 };
 
 fn request(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error> {
-    let (schema, url) = url.split_once("://").unwrap();
+    let (schema, url) = url.split_once("://").unwrap_or(("https", url));
     if schema != "https" && schema != "http" {
         return Ok(None);
     }
@@ -19,7 +19,7 @@ fn request(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error
         _ => 443,
     };
     let port = if url_port != "" {
-        url_port.parse::<u16>().unwrap()
+        url_port.parse::<u16>().unwrap_or(port)
     } else {
         port
     };
