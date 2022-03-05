@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 openssl = "0.10.38"
 egui = "0.17.0"
+eframe = "0.17.0"
+http = "0.2.6"
