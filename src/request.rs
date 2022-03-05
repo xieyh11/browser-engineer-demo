@@ -1,3 +1,4 @@
+use http::StatusCode;
 use openssl::ssl::{SslConnector, SslMethod};
 use std::{
     collections::HashMap,
@@ -6,18 +7,22 @@ use std::{
     net::TcpStream,
 };
 
-fn request(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error> {
+fn request(url: &str) -> Result<Option<(String, HashMap<String, String>, String)>, Error> {
     if url.starts_with("data:") {
         return parse_data(url);
     }
     let (schema, url) = url.split_once("://").unwrap_or(("https", url));
     if schema == "file" {
-        return Ok(Some((HashMap::new(), fs::read_to_string(url)?)));
+        return Ok(Some((
+            StatusCode::OK.to_string(),
+            HashMap::new(),
+            fs::read_to_string(url)?,
+        )));
     }
     if schema != "https" && schema != "http" {
         return Ok(None);
     }
-    let (url, path) = url.split_once("/").unwrap_or((url, "/"));
+    let (url, path) = url.split_once("/").unwrap_or((url, ""));
     let (host, url_port) = url.split_once(":").unwrap_or((url, ""));
 
     let port = match schema {
@@ -49,15 +54,19 @@ fn online_access<S: Read + Write>(
     mut s: S,
     host: &str,
     path: &str,
-) -> Result<Option<(HashMap<String, String>, String)>, Error> {
-    s.write_all(format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nUser-Agent: Browser-Demo/0.0.1\r\n\r\n", path, host).as_bytes())?;
+) -> Result<Option<(String, HashMap<String, String>, String)>, Error> {
+    s.write_all(format!("GET /{} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nUser-Agent: Browser-Demo/0.0.1\r\n\r\n", path, host).as_bytes())?;
     let mut reader = BufReader::new(s);
     let mut buf = String::new();
     reader.read_line(&mut buf)?;
     let (version, status) = buf.split_once(" ").unwrap();
     let (status, explanation) = status.split_once(" ").unwrap();
     if status != "200" {
-        return Ok(None);
+        return Ok(Some((
+            status.to_string(),
+            HashMap::new(),
+            explanation.to_string(),
+        )));
     }
     let mut headers: HashMap<String, String> = HashMap::new();
     for line in reader.by_ref().lines() {
@@ -70,27 +79,30 @@ fn online_access<S: Read + Write>(
     }
     let mut body = String::new();
     reader.read_to_string(&mut body)?;
-    return Ok(Some((headers, body)));
+    return Ok(Some((status.to_string(), headers, body)));
 }
 
-fn show(body: &str) {
+fn show(body: &str) -> String {
     let mut is_angle = 0;
+    let mut body_without_tag = String::new();
     for c in body.chars() {
         if c == '<' {
             is_angle += 1;
         } else if c == '>' {
             is_angle -= 1;
         } else if is_angle == 0 {
-            print!("{}", c);
+            body_without_tag.push(c);
         }
     }
+    body_without_tag
 }
 
-fn parse_data(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Error> {
+fn parse_data(url: &str) -> Result<Option<(String, HashMap<String, String>, String)>, Error> {
     let url = &url["data:".len()..];
     let (metadata, body) = url.split_once(",").unwrap();
     match metadata {
         "text/html" => Ok(Some((
+            StatusCode::OK.to_string(),
             HashMap::new(),
             format!("<html><body>{}</body></html>", body),
         ))),
@@ -98,11 +110,12 @@ fn parse_data(url: &str) -> Result<Option<(HashMap<String, String>, String)>, Er
     }
 }
 
-fn show_only_body(body: &str) {
+fn show_only_body(body: &str) -> String {
     let mut is_angle = 0;
     let mut meet_body = false;
     let mut leave_body = false;
     let mut tag = String::new();
+    let mut only_body = String::new();
     for c in body.chars() {
         if c == '<' {
             tag.clear();
@@ -116,13 +129,18 @@ fn show_only_body(body: &str) {
             tag.clear();
             is_angle -= 1;
         } else if is_angle == 0 && meet_body && !leave_body {
-            print!("{}", c);
+            only_body.push(c);
         } else if is_angle == 1 {
             tag.push(c);
         }
     }
+    only_body
 }
-pub fn load(url: &str) {
-    let (_, body) = request(url).unwrap().unwrap();
-    show_only_body(&body);
+pub fn load(url: &str) -> String {
+    let (status, _, body) = request(url).unwrap().unwrap();
+    if status == StatusCode::OK.as_str() {
+        show_only_body(&body)
+    } else {
+        show(&body)
+    }
 }
