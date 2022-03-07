@@ -7,23 +7,36 @@ use std::{env, error::Error};
 #[derive(Default)]
 struct Browser {
     url: String,
+    body: Option<Result<String, Box<dyn Error>>>,
 }
 
-fn selectable_text(ui: &mut egui::Ui, text: Result<String, Box<dyn Error>>) {
-    let mut text = match text {
-        Ok(t) => t,
-        Err(e) => e.to_string(),
-    };
-    ui.add(
-        egui::TextEdit::multiline(&mut text)
-            .desired_width(f32::INFINITY)
-            .font(egui::TextStyle::Monospace),
-    );
+impl Browser {
+    fn selectable_text(&mut self, ui: &mut egui::Ui) {
+        let body_str: String;
+        let text = match self.body.as_ref().unwrap() {
+            Ok(t) => t,
+            Err(e) => {
+                body_str = e.to_string();
+                &body_str
+            }
+        };
+        ui.label(egui::RichText::new(text));
+    }
 }
 
 impl epi::App for Browser {
     fn name(&self) -> &str {
         "My Browser App"
+    }
+
+    fn setup(
+        &mut self,
+        ctx: &egui::Context,
+        frame: &epi::Frame,
+        storage: Option<&dyn epi::Storage>,
+    ) {
+        ctx.begin_frame(egui::RawInput::default());
+        self.body = Some(load(&self.url));
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
@@ -33,7 +46,7 @@ impl epi::App for Browser {
                 ui.add_space(10.0);
                 ui.separator();
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    selectable_text(ui, load(&self.url));
+                    self.selectable_text(ui);
                 });
             });
         });
@@ -43,6 +56,7 @@ impl epi::App for Browser {
 fn main() {
     let app = Browser {
         url: env::args().nth(1).unwrap(),
+        ..Default::default()
     };
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(Box::new(app), native_options);
