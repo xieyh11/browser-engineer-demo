@@ -36,6 +36,22 @@ impl epi::App for Browser {
         storage: Option<&dyn epi::Storage>,
     ) {
         ctx.begin_frame(egui::RawInput::default());
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "Noto_Sans_SC".to_owned(),
+            egui::FontData::from_static(include_bytes!("../fonts/NotoSansSC-Regular.otf")),
+        );
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "Noto_Sans_SC".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .unwrap()
+            .push("Noto_Sans_SC".to_owned());
+        ctx.set_fonts(fonts);
         self.body = Some(load(&self.url));
     }
 
