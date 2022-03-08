@@ -186,16 +186,16 @@ fn show_only_body(body: Cow<str>) -> Result<String, Box<dyn Error>> {
             tag.clear();
             is_angle += 1;
         } else if c == '>' {
-            if tag == "body" {
+            if tag.starts_with("body") {
                 meet_body = true;
-            } else if tag == "/body" {
+            } else if tag.starts_with("/body") {
                 leave_body = true;
             }
             tag.clear();
             is_angle -= 1;
         } else if is_angle == 0 && meet_body && !leave_body {
             only_body.push(c);
-        } else if is_angle == 1 {
+        } else if is_angle >= 1 {
             tag.push(c);
         }
     }
