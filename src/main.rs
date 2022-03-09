@@ -1,6 +1,4 @@
-mod request;
-
-use crate::request::load;
+use browser_engineer::load;
 use eframe::{egui, epi};
 use std::{env, error::Error};
 
